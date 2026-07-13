@@ -87,6 +87,117 @@
     },
   };
 
+  let latestSoilResult = null;
+  let latestSoilPayload = null;
+
+  function getJsPdfConstructor() {
+    if (!window.jspdf) {
+      return null;
+    }
+    return window.jspdf.jsPDF || window.jspdf.default || null;
+  }
+
+  function downloadTextFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportNodeAsImage(node, filename) {
+    if (!node || !window.html2canvas) {
+      alert("Image export is not available right now.");
+      return Promise.resolve();
+    }
+
+    return window
+      .html2canvas(node, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      })
+      .then((canvas) => {
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/jpeg", 0.95);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
+  }
+
+  function exportNodeAsPdf(node, filename) {
+    const PdfCtor = getJsPdfConstructor();
+    if (!node || !PdfCtor || !window.html2canvas) {
+      alert("PDF export is not available right now.");
+      return Promise.resolve();
+    }
+
+    return window
+      .html2canvas(node, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      })
+      .then((canvas) => {
+        const pdf = new PdfCtor({
+          orientation: canvas.width > canvas.height ? "landscape" : "portrait",
+          unit: "pt",
+          format: "a4",
+        });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const ratio = Math.min(
+          pageWidth / canvas.width,
+          pageHeight / canvas.height,
+        );
+        const width = canvas.width * ratio;
+        const height = canvas.height * ratio;
+        const x = (pageWidth - width) / 2;
+        const y = (pageHeight - height) / 2;
+        pdf.addImage(
+          canvas.toDataURL("image/jpeg", 0.95),
+          "JPEG",
+          x,
+          y,
+          width,
+          height,
+        );
+        pdf.save(filename);
+      });
+  }
+
+  function buildSoilCsv(result) {
+    const rows = [
+      ["Field", "Value"],
+      ["Soil Grade", result.score?.grade || ""],
+      ["Soil Score", result.score?.score ?? ""],
+      ["Nitrogen", result.npk?.nitrogen?.value ?? ""],
+      ["Phosphorus", result.npk?.phosphorus?.value ?? ""],
+      ["Potassium", result.npk?.potassium?.value ?? ""],
+      ["pH", result.ph?.value ?? ""],
+      ["Moisture", result.moisture?.value ?? ""],
+      ["Organic Carbon", result.organic_carbon?.value ?? ""],
+      ["Electrical Conductivity", result.electrical_conductivity?.value ?? ""],
+      ["Suitable Crops", (result.suitable_crops || []).join(" | ")],
+      ["Alerts", (result.alerts || []).map((item) => item.title).join(" | ")],
+      ["Summary", result.summary || ""],
+    ];
+
+    return rows
+      .map((row) =>
+        row
+          .map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+  }
+
   function createChart(ctx, config, existingChart) {
     if (!ctx || !window.Chart) {
       return existingChart;
@@ -257,6 +368,18 @@
   }
 
   function renderResult(result) {
+    latestSoilResult = result;
+    window.latestSoilAnalysis = result;
+
+    ["exportSoilJpgBtn", "exportSoilPdfBtn", "exportSoilCsvBtn"].forEach(
+      (id) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.disabled = false;
+        }
+      },
+    );
+
     const scoreValue = Number(result.score?.score || 0);
     const scoreFill = document.getElementById("score-fill");
     const scoreNumber = document.getElementById("score-number");
@@ -294,6 +417,62 @@
     renderCrops(result.suitable_crops || []);
     renderAlerts(result.alerts || []);
     renderCharts(result);
+  }
+
+  function initExportControls() {
+    const jpgBtn = document.getElementById("exportSoilJpgBtn");
+    const pdfBtn = document.getElementById("exportSoilPdfBtn");
+    const csvBtn = document.getElementById("exportSoilCsvBtn");
+
+    const updateState = () => {
+      const hasResult = !!latestSoilResult;
+      [jpgBtn, pdfBtn, csvBtn].forEach((btn) => {
+        if (btn) {
+          btn.disabled = !hasResult;
+        }
+      });
+    };
+
+    const getResult = () =>
+      latestSoilResult || window.latestSoilAnalysis || null;
+
+    jpgBtn?.addEventListener("click", async () => {
+      const result = getResult();
+      if (!result) {
+        alert("Run a soil analysis first.");
+        return;
+      }
+      const target = document.querySelector(".soil-results-panel");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      await exportNodeAsImage(target, `soil_health_${stamp}.jpg`);
+    });
+
+    pdfBtn?.addEventListener("click", async () => {
+      const result = getResult();
+      if (!result) {
+        alert("Run a soil analysis first.");
+        return;
+      }
+      const target = document.querySelector(".soil-results-panel");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      await exportNodeAsPdf(target, `soil_health_${stamp}.pdf`);
+    });
+
+    csvBtn?.addEventListener("click", () => {
+      const result = getResult();
+      if (!result) {
+        alert("Run a soil analysis first.");
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      downloadTextFile(
+        buildSoilCsv(result),
+        `soil_health_${stamp}.csv`,
+        "text/csv;charset=utf-8;",
+      );
+    });
+
+    updateState();
   }
 
   function classifyDriver(value, low, high) {
@@ -396,5 +575,6 @@
   form.addEventListener("submit", analyzeSoil);
   form.addEventListener("input", renderDriverIntelligence);
   form.addEventListener("change", renderDriverIntelligence);
+  initExportControls();
   renderDriverIntelligence();
 })();

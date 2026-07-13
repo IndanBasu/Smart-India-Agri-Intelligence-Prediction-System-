@@ -1,3 +1,4 @@
 # Smart-India-Agri-Intelligence-System
 
-this is my project
+A Flask-based integrated agricultural machine learning platform that combines crop recommendation, yield prediction, crop price forecasting, and soil health intelligence to support data-driven farming decisions. The system uses trained models and dataset-driven dashboards to help farmers and researchers improve productivity, planning, and market awarenes.
+

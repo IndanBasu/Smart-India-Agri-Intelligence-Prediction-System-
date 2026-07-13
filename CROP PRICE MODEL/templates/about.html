@@ -4,28 +4,47 @@
   <div class="section-head mt-4">
     <h2>About the Project</h2>
     <p>
-      AI-powered crop price prediction system built for Indian agriculture
+      ML-powered crop price prediction system built for Indian agriculture
       markets.
     </p>
   </div>
 
-  <div class="glass-card p-4">
+  <div class="glass-card p-4 mb-4">
     <h4>What is crop price prediction?</h4>
-    <p>
+    <p class="mb-0">
       Crop price prediction estimates upcoming mandi modal prices using
       historical market records and contextual attributes such as state,
       district, market, commodity, variety and arrival date.
     </p>
+  </div>
 
-    <h4>Business value for farmers and traders</h4>
-    <p>
-      The platform helps users compare expected prices with current market
-      behavior, identify stronger markets, and improve selling or procurement
-      timing with data-backed confidence.
-    </p>
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100">
+        <h4>Business value for farmers and traders</h4>
+        <p class="mb-0">
+          The platform helps users compare expected prices with current market
+          behavior, identify stronger markets, and improve selling or
+          procurement timing with data-backed confidence.
+        </p>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100">
+        <h4>Dataset source and schema</h4>
+        <p class="mb-0">
+          The training file is dataset/crop_prices.csv and follows
+          AGMARKNET-style mandi records with key fields: State, District,
+          Market, Commodity, Variety, Arrival Date, Min Price, Max Price and
+          Modal Price.
+        </p>
+      </div>
+    </div>
+  </div>
 
-    <h4>How this project is structured</h4>
-    <ul>
+  <div class="glass-card p-4 mb-4">
+    <h4 class="mb-3">How this project is structured</h4>
+    <ul class="about-list mb-0">
       <li>Dataset explorer to inspect the exact training dataset rows.</li>
       <li>
         Dashboard with trend, monthly, state and commodity visual analytics.
@@ -39,29 +58,31 @@
         Data preprocessing and EDA pages for transparency of pipeline steps.
       </li>
     </ul>
+  </div>
 
-    <h4>Dataset source and schema</h4>
-    <p>
-      The training file is `dataset/crop_prices.csv` and follows AGMARKNET-style
-      mandi records with key fields: State, District, Market, Commodity,
-      Variety, Arrival Date, Min Price, Max Price and Modal Price.
-    </p>
-
-    <h4>Technology stack</h4>
-    <ul>
-      <li>Frontend: HTML5, CSS3, Bootstrap 5, JavaScript, Chart.js</li>
-      <li>Backend API: Python Flask</li>
-      <li>ML pipeline: scikit-learn with encoded categorical features</li>
-      <li>Data processing: Pandas and NumPy</li>
-      <li>Model persistence: Joblib</li>
-    </ul>
-
-    <h4>Real-time data behavior</h4>
-    <p class="mb-0">
-      Dashboard and home metrics are loaded from backend APIs and refreshed
-      periodically, so uploaded datasets and retrained models are reflected
-      directly in the UI.
-    </p>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100">
+        <h4 class="mb-3">Technology stack</h4>
+        <ul class="about-list mb-0">
+          <li>Frontend: HTML5, CSS3, Bootstrap 5, JavaScript, Chart.js</li>
+          <li>Backend API: Python Flask</li>
+          <li>ML pipeline: scikit-learn with encoded categorical features</li>
+          <li>Data processing: Pandas and NumPy</li>
+          <li>Model persistence: Joblib</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="glass-card p-4 h-100">
+        <h4 class="mb-3">Real-time data behavior</h4>
+        <p class="mb-0">
+          Dashboard and home metrics are loaded from backend APIs and refreshed
+          periodically, so uploaded datasets and retrained models are reflected
+          directly in the UI.
+        </p>
+      </div>
+    </div>
   </div>
 </section>
 {% endblock %}

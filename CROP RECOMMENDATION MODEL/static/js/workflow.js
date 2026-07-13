@@ -19,4 +19,12 @@ function initWorkflowReveal() {
 
 document.addEventListener("DOMContentLoaded", () => {
   initWorkflowReveal();
+
+  document
+    .querySelectorAll(".workflow-nav-row .workflow-btn")
+    .forEach((btn) => {
+      if (btn.textContent.trim() === "Previous") {
+        btn.textContent = "Previous Step";
+      }
+    });
 });

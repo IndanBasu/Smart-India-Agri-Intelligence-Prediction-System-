@@ -91,61 +91,56 @@
             >Pesticides (tonnes)
             <input type="number" step="0.1" name="pesticides_tonnes" required />
           </label>
-          <label
-            >Season
+          <label>
+            Season
             <select name="season" required>
-              <option value="" selected disabled>Select Season</option>
+              <option value="" disabled selected hidden></option>  
               {% for opt in dropdown_data.seasons %}
-              <option value="{{ opt }}">{{ opt }}</option>
+                {% if opt and opt|trim %}
+                  <option value="{{ opt }}">{{ opt }}</option>
+                {% endif %}
               {% endfor %}
             </select>
           </label>
           <label
             >Climate Type
             <select name="climate_type" required>
-              <option value="" selected disabled>Select Climate Type</option>
-              {% for opt in dropdown_data.climate_types %}
+              <option value="" disabled selected hidden></option>  
+              {% for opt in dropdown_data.climate_types %} {% if opt and
+              opt|trim %}
               <option value="{{ opt }}">{{ opt }}</option>
-              {% endfor %}
+              {% endif %} {% endfor %}
             </select>
           </label>
           <label
             >Economic Use
             <select name="economic_use" required>
-              <option value="" selected disabled>Select Economic Use</option>
-              {% for opt in dropdown_data.economic_uses %}
+              <option value="" disabled selected hidden></option> 
+              {% for opt in dropdown_data.economic_uses %} {% if opt and
+              opt|trim %}
               <option value="{{ opt }}">{{ opt }}</option>
-              {% endfor %}
+              {% endif %} {% endfor %}
             </select>
           </label>
           <label
             >State
             <select name="state" id="state-select" required>
-              <option value="" selected disabled>Select State</option>
-              {% for opt in dropdown_data.states %}
+              <option value="" disabled selected hidden></option> 
+              {% for opt in dropdown_data.states %} {% if opt and opt|trim %}
               <option value="{{ opt }}">{{ opt }}</option>
-              {% endfor %}
+              {% endif %} {% endfor %}
             </select>
           </label>
           <label
             >District
             <select name="district" id="district-select" required>
-              <option value="" selected disabled>Select District</option>
+              <option value="" disabled selected hidden></option>  
             </select>
           </label>
           <label
             >Market
             <select name="market" id="market-select" required>
-              <option value="" selected disabled>Select Market</option>
-            </select>
-          </label>
-          <label
-            >Variety
-            <select name="variety" required>
-              <option value="" selected disabled>Select Variety</option>
-              {% for opt in dropdown_data.varieties %}
-              <option value="{{ opt }}">{{ opt }}</option>
-              {% endfor %}
+              <option value="" disabled selected hidden></option>  
             </select>
           </label>
 
@@ -332,6 +327,8 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script id="farmer-dropdown-data" type="application/json">
       {{ dropdown_data|tojson }}
     </script>

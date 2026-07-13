@@ -6,6 +6,7 @@
 
   let yieldChart = null;
   let priceChart = null;
+  let latestUnifiedResult = null;
 
   function toNumber(value, fallback) {
     const parsed = Number(value);
@@ -26,8 +27,135 @@
 
   function populateSelect(selectEl, values, placeholder) {
     if (!selectEl) return;
-    const list = Array.isArray(values) ? values : [];
-    selectEl.innerHTML = `\n      <option value="" selected disabled>${placeholder}</option>\n      ${list.map((x) => `<option value="${String(x).replace(/"/g, "&quot;")}">${x}</option>`).join("")}\n    `;
+    const list = (Array.isArray(values) ? values : []).filter(
+      (x) => String(x ?? "").trim() !== "",
+    );
+    const prompt = placeholder
+      ? `<option value="" selected disabled>${placeholder}</option>`
+      : "";
+    selectEl.innerHTML =
+      prompt +
+      list
+        .map(
+          (x) =>
+            `<option value="${String(x).replace(/"/g, "&quot;")}">${x}</option>`,
+        )
+        .join("");
+  }
+
+  function getJsPdfConstructor() {
+    if (!window.jspdf) {
+      return null;
+    }
+    return window.jspdf.jsPDF || window.jspdf.default || null;
+  }
+
+  function downloadTextFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportNodeAsImage(node, filename) {
+    if (!node || !window.html2canvas) {
+      alert("Image export is not available right now.");
+      return Promise.resolve();
+    }
+
+    return window
+      .html2canvas(node, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      })
+      .then((canvas) => {
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/jpeg", 0.95);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
+  }
+
+  function exportNodeAsPdf(node, filename) {
+    const PdfCtor = getJsPdfConstructor();
+    if (!node || !PdfCtor || !window.html2canvas) {
+      alert("PDF export is not available right now.");
+      return Promise.resolve();
+    }
+
+    return window
+      .html2canvas(node, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      })
+      .then((canvas) => {
+        const pdf = new PdfCtor({
+          orientation: canvas.width > canvas.height ? "landscape" : "portrait",
+          unit: "pt",
+          format: "a4",
+        });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const ratio = Math.min(
+          pageWidth / canvas.width,
+          pageHeight / canvas.height,
+        );
+        const width = canvas.width * ratio;
+        const height = canvas.height * ratio;
+        const x = (pageWidth - width) / 2;
+        const y = (pageHeight - height) / 2;
+        pdf.addImage(
+          canvas.toDataURL("image/jpeg", 0.95),
+          "JPEG",
+          x,
+          y,
+          width,
+          height,
+        );
+        pdf.save(filename);
+      });
+  }
+
+  function buildUnifiedCsv(result) {
+    const raw = result.raw || {};
+    const rows = [
+      ["Field", "Value"],
+      ["Recommended Crop", result.recommended_crop || ""],
+      ["Expected Yield (ton/ha)", result.expected_yield_ton_per_hectare ?? ""],
+      [
+        "Predicted Price (INR/quintal)",
+        result.predicted_price_inr_per_quintal ?? "",
+      ],
+      ["Best Market", result.best_market || ""],
+      ["Estimated Revenue (INR)", result.estimated_revenue_inr ?? ""],
+      ["Estimated Profit (INR)", result.estimated_profit_inr ?? ""],
+      ["Decision", result.decision_text || ""],
+      ["Fusion Confidence", result.model_fusion?.fusion_confidence ?? ""],
+      ["Fusion Note", result.model_fusion?.fusion_note || ""],
+      [
+        "Recommendation Insight",
+        raw.recommendation?.estimated_price_per_ton ?? "",
+      ],
+      ["Yield Insight", raw.yield?.yield_explanation || ""],
+      ["Price Insight", raw.price?.price_trend || ""],
+    ];
+
+    return rows
+      .map((row) =>
+        row
+          .map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
   }
 
   function initCascadingDropdowns() {
@@ -50,8 +178,8 @@
     function refreshDistricts() {
       const state = stateSelect.value || "";
       const districts = state ? districtsByState[state] || [] : [];
-      populateSelect(districtSelect, districts, "Select District");
-      populateSelect(marketSelect, [], "Select Market");
+      populateSelect(districtSelect, districts);
+      refreshMarkets();
     }
 
     function refreshMarkets() {
@@ -60,11 +188,13 @@
       const key = districtKey(state, district);
       const markets =
         state && district ? marketsByStateDistrict[key] || [] : [];
-      populateSelect(marketSelect, markets, "Select Market");
+      populateSelect(marketSelect, markets);
     }
 
     stateSelect.addEventListener("change", refreshDistricts);
     districtSelect.addEventListener("change", refreshMarkets);
+
+    refreshDistricts();
   }
 
   function renderCharts(payload) {
@@ -166,6 +296,18 @@
   }
 
   function renderResult(payload) {
+    latestUnifiedResult = payload;
+    window.latestUnifiedPrediction = payload;
+
+    ["exportFarmerJpgBtn", "exportFarmerPdfBtn", "exportFarmerCsvBtn"].forEach(
+      (id) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.disabled = false;
+        }
+      },
+    );
+
     setText("recommended_crop", payload.recommended_crop);
     setText(
       "expected_yield",
@@ -243,6 +385,62 @@
     renderCharts(payload);
   }
 
+  function initExportControls() {
+    const jpgBtn = document.getElementById("exportFarmerJpgBtn");
+    const pdfBtn = document.getElementById("exportFarmerPdfBtn");
+    const csvBtn = document.getElementById("exportFarmerCsvBtn");
+
+    const updateState = () => {
+      const hasResult = !!latestUnifiedResult;
+      [jpgBtn, pdfBtn, csvBtn].forEach((btn) => {
+        if (btn) {
+          btn.disabled = !hasResult;
+        }
+      });
+    };
+
+    const getResult = () =>
+      latestUnifiedResult || window.latestUnifiedPrediction || null;
+
+    jpgBtn?.addEventListener("click", async () => {
+      const result = getResult();
+      if (!result) {
+        alert("Run unified prediction first.");
+        return;
+      }
+      const target = document.querySelector(".intel-results");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      await exportNodeAsImage(target, `farmer_intelligence_${stamp}.jpg`);
+    });
+
+    pdfBtn?.addEventListener("click", async () => {
+      const result = getResult();
+      if (!result) {
+        alert("Run unified prediction first.");
+        return;
+      }
+      const target = document.querySelector(".intel-results");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      await exportNodeAsPdf(target, `farmer_intelligence_${stamp}.pdf`);
+    });
+
+    csvBtn?.addEventListener("click", () => {
+      const result = getResult();
+      if (!result) {
+        alert("Run unified prediction first.");
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      downloadTextFile(
+        buildUnifiedCsv(result),
+        `farmer_intelligence_${stamp}.csv`,
+        "text/csv;charset=utf-8;",
+      );
+    });
+
+    updateState();
+  }
+
   async function submitUnifiedPrediction(event) {
     event.preventDefault();
 
@@ -308,6 +506,7 @@
   }
 
   initCascadingDropdowns();
+  initExportControls();
 
   form.addEventListener("submit", submitUnifiedPrediction);
 })();

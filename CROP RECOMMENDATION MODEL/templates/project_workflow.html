@@ -7,6 +7,19 @@ Recommendation Prediction{% endblock %} {% block extra_head %}
 {% endblock %} {% block content %}
 <section class="container workflow-shell">
   <div class="section-head workflow-head">
+    <div class="workflow-nav-row">
+      {% if workflow.prev_step %}
+      <a class="workflow-btn" href="{{ url_for(workflow.prev_step.endpoint) }}"
+        >Previous Step</a
+      >
+      {% else %}
+      <span></span>
+      {% endif %} {% if workflow.next_step %}
+      <a class="workflow-btn" href="{{ url_for(workflow.next_step.endpoint) }}"
+        >Next Step</a
+      >
+      {% endif %}
+    </div>
     <h1>Project Workflow</h1>
     <p>
       Complete AI pipeline for Crop Recommendation from dataset preparation to

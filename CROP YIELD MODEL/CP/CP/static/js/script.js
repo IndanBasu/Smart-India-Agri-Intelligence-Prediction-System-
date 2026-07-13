@@ -4,6 +4,8 @@
   var chartInstances = {};
   var predictionHistory = [];
   var PREDICTION_HISTORY_KEY = "crop_prediction_history_v1";
+  var latestPredictionPayload = null;
+  var latestPredictionResult = null;
 
   function loadPredictionHistory() {
     try {
@@ -37,6 +39,125 @@
       return '"' + str.replace(/"/g, '""') + '"';
     }
     return str;
+  }
+
+  function getJsPdfConstructor() {
+    if (!window.jspdf) {
+      return null;
+    }
+    return window.jspdf.jsPDF || window.jspdf.default || null;
+  }
+
+  function downloadTextFile(content, filename, mimeType) {
+    var blob = new Blob([content], { type: mimeType });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function readLatestPredictionContext() {
+    try {
+      var raw = localStorage.getItem("latest_farmer_prediction_context_v1");
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function buildYieldCsvRow(source) {
+    var payload = source?.formPayload || {};
+    var result = source?.result || {};
+    return [
+      ["Field", "Value"],
+      ["Time", source?.savedAt || ""],
+      ["State", payload.Area || ""],
+      ["Crop", payload.Item || ""],
+      ["Year", payload.Year || ""],
+      ["Temperature", payload.avg_temp || ""],
+      ["Rainfall", payload.average_rain_fall_mm_per_year || ""],
+      ["Pesticides", payload.pesticides_tonnes || ""],
+      ["Farm Area", payload.farm_area_hectares || ""],
+      ["Yield t/ha", result.prediction_ton_per_ha || ""],
+      ["Yield hg/ha", result.prediction_hg_per_ha || ""],
+      ["Total Production", result.estimated_production_tons || ""],
+      ["Explanation", result.explanation || ""],
+    ]
+      .map(function (row) {
+        return row
+          .map(function (value) {
+            return csvEscape(value);
+          })
+          .join(",");
+      })
+      .join("\n");
+  }
+
+  function exportNodeAsImage(node, filename) {
+    if (!node || !window.html2canvas) {
+      alert("Image export is not available right now.");
+      return Promise.resolve();
+    }
+
+    return window
+      .html2canvas(node, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      })
+      .then(function (canvas) {
+        var link = document.createElement("a");
+        link.href = canvas.toDataURL("image/jpeg", 0.95);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
+  }
+
+  function exportNodeAsPdf(node, filename) {
+    var PdfCtor = getJsPdfConstructor();
+    if (!node || !PdfCtor || !window.html2canvas) {
+      alert("PDF export is not available right now.");
+      return Promise.resolve();
+    }
+
+    return window
+      .html2canvas(node, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      })
+      .then(function (canvas) {
+        var pdf = new PdfCtor({
+          orientation: canvas.width > canvas.height ? "landscape" : "portrait",
+          unit: "pt",
+          format: "a4",
+        });
+        var pageWidth = pdf.internal.pageSize.getWidth();
+        var pageHeight = pdf.internal.pageSize.getHeight();
+        var ratio = Math.min(
+          pageWidth / canvas.width,
+          pageHeight / canvas.height,
+        );
+        var width = canvas.width * ratio;
+        var height = canvas.height * ratio;
+        var x = (pageWidth - width) / 2;
+        var y = (pageHeight - height) / 2;
+        pdf.addImage(
+          canvas.toDataURL("image/jpeg", 0.95),
+          "JPEG",
+          x,
+          y,
+          width,
+          height,
+        );
+        pdf.save(filename);
+      });
   }
 
   function parseCsvLine(line) {
@@ -260,7 +381,7 @@
       },
     });
 
-    // Sort area yield descending so the longest bar appears at top
+    // Sort state yield descending so the longest bar appears at top
     var apLabels = data.area_vs_production.labels.slice();
     var apValues = data.area_vs_production.values.slice();
     var apPairs = apLabels.map(function (l, i) {
@@ -282,7 +403,7 @@
         labels: apLabels,
         datasets: [
           {
-            label: "Mean Yield by Area (hg/ha)",
+            label: "Mean Yield by State (hg/ha)",
             data: apValues,
             backgroundColor: "rgba(27, 116, 61, 0.74)",
             borderRadius: 6,
@@ -586,6 +707,29 @@
       item.textContent =
         key.charAt(0).toUpperCase() + key.slice(1) + ": " + result.factors[key];
       factorList.appendChild(item);
+    });
+
+    latestPredictionResult = result;
+    latestPredictionPayload = formPayload;
+    window.latestYieldPrediction = {
+      result: result,
+      formPayload: formPayload,
+    };
+
+    // Re-initialize export controls so event listeners are always attached
+    if (typeof initYieldExportControls === "function") {
+      initYieldExportControls();
+    }
+
+    [
+      "exportCurrentYieldJpgBtn",
+      "exportCurrentYieldPdfBtn",
+      "exportCurrentYieldCsvBtn",
+    ].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -900,6 +1044,77 @@
     }
   }
 
+  function initYieldExportControls() {
+    var jpgBtn = document.getElementById("exportCurrentYieldJpgBtn");
+    var pdfBtn = document.getElementById("exportCurrentYieldPdfBtn");
+    var csvBtn = document.getElementById("exportCurrentYieldCsvBtn");
+
+    var getSource = function () {
+      return (
+        (latestPredictionResult && latestPredictionPayload
+          ? {
+              savedAt: new Date().toISOString(),
+              result: latestPredictionResult,
+              formPayload: latestPredictionPayload,
+            }
+          : null) || readLatestPredictionContext()
+      );
+    };
+
+    var updateState = function () {
+      var hasSource = !!getSource();
+      [jpgBtn, pdfBtn, csvBtn].forEach(function (btn) {
+        if (btn) {
+          btn.disabled = !hasSource;
+        }
+      });
+    };
+
+    if (jpgBtn) {
+      jpgBtn.addEventListener("click", function () {
+        var source = getSource();
+        if (!source) {
+          alert("No prediction available to export yet.");
+          return;
+        }
+        var target = document.getElementById("predictionResult");
+        var stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+        exportNodeAsImage(target, "yield_prediction_" + stamp + ".jpg");
+      });
+    }
+
+    if (pdfBtn) {
+      pdfBtn.addEventListener("click", function () {
+        var source = getSource();
+        if (!source) {
+          alert("No prediction available to export yet.");
+          return;
+        }
+        var target = document.getElementById("predictionResult");
+        var stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+        exportNodeAsPdf(target, "yield_prediction_" + stamp + ".pdf");
+      });
+    }
+
+    if (csvBtn) {
+      csvBtn.addEventListener("click", function () {
+        var source = getSource();
+        if (!source) {
+          alert("No prediction available to export yet.");
+          return;
+        }
+        var stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+        downloadTextFile(
+          buildYieldCsvRow(source),
+          "yield_prediction_" + stamp + ".csv",
+          "text/csv;charset=utf-8;",
+        );
+      });
+    }
+
+    updateState();
+  }
+
   function initPredictionForm() {
     var form = document.getElementById("predictionForm");
     if (!form) {
@@ -912,8 +1127,6 @@
     var skeleton = document.getElementById("predictionSkeleton");
     var resultPanel = document.getElementById("predictionResult");
     var formPayload;
-    var liveUpdateTimeout;
-    var liveRequestCounter = 0;
 
     function normalizeYearPayload(payload) {
       if (!payload || !payload.Year) {
@@ -939,67 +1152,8 @@
       updateLiveInputHints(getFormPayload());
     }
 
-    // Real-time yield bar update on input change
-    function updateYieldBarLive() {
-      if (liveUpdateTimeout) {
-        clearTimeout(liveUpdateTimeout);
-      }
-
-      liveUpdateTimeout = setTimeout(function () {
-        var payload = getFormPayload();
-        var requestId = ++liveRequestCounter;
-
-        // Only fetch if all required fields are filled
-        if (
-          !payload.Year ||
-          !payload.Area ||
-          !payload.Item ||
-          !payload.pesticides_tonnes ||
-          !payload.avg_temp ||
-          !payload.farm_area_hectares
-        ) {
-          return;
-        }
-
-        fetch("/api/predict", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        })
-          .then(function (response) {
-            return response.json().then(function (data) {
-              return { status: response.status, data: data };
-            });
-          })
-          .then(function (result) {
-            if (requestId !== liveRequestCounter) {
-              return;
-            }
-            if (result.data.ok) {
-              // Update only the yield bar without full UI update
-              var tonHa = Number(result.data.result.prediction_ton_per_ha);
-              var totalTons = result.data.result.estimated_production_tons;
-              var farmHa = Number(payload.farm_area_hectares || 1);
-              var cropName = payload.Item;
-              renderYieldIntensityBar(tonHa, totalTons, farmHa, cropName, {
-                isLive: true,
-              });
-            }
-          })
-          .catch(function (error) {
-            // Silently fail for live updates
-          });
-      }, 500); // 500ms debounce
-    }
-
     form.addEventListener("input", syncHintsFromForm);
     form.addEventListener("change", syncHintsFromForm);
-
-    // Add live update listeners to key fields
-    form.addEventListener("input", updateYieldBarLive);
-    form.addEventListener("change", updateYieldBarLive);
 
     syncHintsFromForm();
 
@@ -1420,6 +1574,7 @@
 
   chartDefaults();
   initPredictionHistoryControls();
+  initYieldExportControls();
   initPredictionForm();
   initAnalyticsCharts();
   initModelPerformanceChart();

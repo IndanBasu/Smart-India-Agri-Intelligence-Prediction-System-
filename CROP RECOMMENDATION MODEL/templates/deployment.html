@@ -54,7 +54,7 @@ endblock %} {% block extra_head %}
     {% if workflow.prev_step %}<a
       class="ghost-btn"
       href="{{ url_for(workflow.prev_step.endpoint) }}"
-      >Previous</a
+      >Previous Step</a
     >{% endif %}
     <a class="cta-btn" href="{{ url_for('project_workflow') }}"
       >Back to Workflow</a

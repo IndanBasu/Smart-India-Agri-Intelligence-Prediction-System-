@@ -401,6 +401,104 @@ def _read_main_df() -> pd.DataFrame:
     return _prepare_dataframe(pd.read_csv(DATA_PATH))
 
 
+def _build_live_state_preview(df: pd.DataFrame, max_rows: int = 36) -> pd.DataFrame:
+    if df.empty:
+        return df.head(0).copy()
+
+    preview_df = df.copy()
+    sort_columns = [col for col in ["Arrival_Date", "State", "District", "Market", "Commodity"] if col in preview_df.columns]
+    if "Arrival_Date" in preview_df.columns:
+        preview_df = preview_df.sort_values(
+            sort_columns,
+            ascending=[False] + [True] * (len(sort_columns) - 1),
+            na_position="last",
+        )
+    elif sort_columns:
+        preview_df = preview_df.sort_values(sort_columns, ascending=True, na_position="last")
+
+    if "State" not in preview_df.columns:
+        return preview_df.head(max_rows)
+
+    states_in_data = []
+    seen_states = set()
+    for state in preview_df["State"].dropna().astype(str).tolist():
+        if state not in seen_states:
+            seen_states.add(state)
+            states_in_data.append(state)
+
+    ordered_states = [state for state in ALL_INDIAN_STATES_UT if state in seen_states]
+    ordered_states.extend([state for state in states_in_data if state not in ALL_INDIAN_STATES_UT])
+
+    preview_rows = []
+    for state in ordered_states:
+        state_rows = preview_df[preview_df["State"] == state]
+        if not state_rows.empty:
+            preview_rows.append(state_rows.head(1))
+        if len(preview_rows) >= max_rows:
+            break
+
+    if not preview_rows:
+        return preview_df.head(max_rows)
+
+    return pd.concat(preview_rows, ignore_index=True).head(max_rows)
+
+
+def _build_state_coverage_summary(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty or "State" not in df.columns:
+        return pd.DataFrame(columns=["State", "Rows", "Share (%)"])
+
+    counts = (
+        df["State"].dropna().astype(str).value_counts().rename_axis("State").reset_index(name="Rows")
+    )
+    counts["Share (%)"] = (counts["Rows"] / max(len(df), 1) * 100).round(2)
+
+    ordered_states = [state for state in ALL_INDIAN_STATES_UT if state in counts["State"].tolist()]
+    extra_states = [state for state in counts["State"].tolist() if state not in ordered_states]
+    return counts.set_index("State").loc[ordered_states + extra_states].reset_index()
+
+
+def _build_basic_info_payload() -> dict:
+    df = _read_main_df()
+    head_df = _build_live_state_preview(df)
+    coverage_df = _build_state_coverage_summary(df)
+    shape = df.shape
+
+    numeric_columns = [
+        col
+        for col in ["Min_Price", "Max_Price", "Modal_Price", "Arrival_Day", "Arrival_Month", "Arrival_Year"]
+        if col in df.columns
+    ]
+    if numeric_columns:
+        desc_html = df[numeric_columns].describe().round(2).to_html(classes="table table-striped table-sm")
+    else:
+        desc_html = "<p class='mb-0'>No numeric columns available for describe().</p>"
+
+    info_df = pd.DataFrame(
+        {
+            "Column": df.columns,
+            "Non-Null Count": [int(df[c].notna().sum()) for c in df.columns],
+            "Dtype": [str(df[c].dtype) for c in df.columns],
+        }
+    )
+
+    coverage_summary = {
+        "states_with_data": int(df["State"].nunique()) if "State" in df.columns else 0,
+        "states_reference": len(ALL_INDIAN_STATES_UT),
+        "rows_total": int(len(df)),
+        "rows_previewed": int(len(head_df)),
+    }
+
+    return {
+        "head_html": head_df.to_html(classes="table table-striped table-sm", index=False),
+        "coverage_html": coverage_df.head(12).to_html(classes="table table-striped table-sm", index=False),
+        "coverage_summary": coverage_summary,
+        "shape": shape,
+        "desc_html": desc_html,
+        "info_html": info_df.to_html(classes="table table-striped table-sm", index=False),
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def _safe_rmse(y_true: pd.Series, y_pred: np.ndarray) -> float:
     return float(mean_squared_error(y_true, y_pred) ** 0.5)
 
@@ -600,41 +698,8 @@ def farmer_knowledge_insight_page():
 
 @app.route("/basic_info")
 def basic_info_page():
-    df = _read_main_df()
-    head_html = df.head().to_html(classes="table table-striped table-sm", index=False)
-    shape = df.shape
-    desc_html = (
-        df[
-            [
-                "Min_Price",
-                "Max_Price",
-                "Modal_Price",
-                "Arrival_Day",
-                "Arrival_Month",
-                "Arrival_Year",
-            ]
-        ]
-        .describe()
-        .round(2)
-        .to_html(classes="table table-striped table-sm")
-    )
-
-    info_df = pd.DataFrame(
-        {
-            "Column": df.columns,
-            "Non-Null Count": [int(df[c].notna().sum()) for c in df.columns],
-            "Dtype": [str(df[c].dtype) for c in df.columns],
-        }
-    )
-    info_html = info_df.to_html(classes="table table-striped table-sm", index=False)
-
-    return render_template(
-        "basic_info.html",
-        head_html=head_html,
-        shape=shape,
-        desc_html=desc_html,
-        info_html=info_html,
-    )
+    payload = _build_basic_info_payload()
+    return render_template("basic_info.html", **payload)
 
 
 @app.route("/preprocessing_data")
@@ -645,35 +710,7 @@ def preprocessing_data_page():
 
 @app.route("/api/basic_info")
 def basic_info_api():
-    df = _read_main_df()
-
-    head_html = df.head().to_html(classes="table table-striped table-sm", index=False)
-    shape = [int(df.shape[0]), int(df.shape[1])]
-
-    numeric_df = df.select_dtypes(include=[np.number])
-    if numeric_df.shape[1] == 0:
-        desc_html = "<p class='mb-0'>No numeric columns available for describe().</p>"
-    else:
-        desc_html = numeric_df.describe().round(2).to_html(classes="table table-striped table-sm")
-
-    info_df = pd.DataFrame(
-        {
-            "Column": df.columns,
-            "Non-Null Count": [int(df[c].notna().sum()) for c in df.columns],
-            "Dtype": [str(df[c].dtype) for c in df.columns],
-        }
-    )
-    info_html = info_df.to_html(classes="table table-striped table-sm", index=False)
-
-    return jsonify(
-        {
-            "head_html": head_html,
-            "shape": shape,
-            "desc_html": desc_html,
-            "info_html": info_html,
-            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }
-    )
+    return jsonify(_build_basic_info_payload())
 
 
 @app.route("/api/preprocessing_data")

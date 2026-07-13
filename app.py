@@ -681,7 +681,6 @@ def get_farmer_dropdown_data() -> dict[str, Any]:
 		"states": [],
 		"districts_by_state": {},
 		"markets_by_state_district": {},
-		"varieties": [],
 	}
 
 	try:
@@ -730,8 +729,6 @@ def get_farmer_dropdown_data() -> dict[str, Any]:
 
 				if state:
 					price_states.add(state)
-				if variety:
-					data["varieties"].append(variety)
 
 				if state and district:
 					data["districts_by_state"].setdefault(state, []).append(district)
@@ -739,7 +736,6 @@ def get_farmer_dropdown_data() -> dict[str, Any]:
 					key = f"{state}|||{district}"
 					data["markets_by_state_district"].setdefault(key, []).append(market)
 
-			data["varieties"] = sorted(set(data["varieties"]))
 			for key in list(data["districts_by_state"].keys()):
 				data["districts_by_state"][key] = sorted(set(data["districts_by_state"][key]))
 			for key in list(data["markets_by_state_district"].keys()):

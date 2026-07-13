@@ -1,40 +1,75 @@
-{% extends "base.html" %} {% block title %}About | Crop Recommendation
-Prediction{% endblock %} {% block content %}
-<div class="container" style="padding: 24px 0 36px">
-  <div class="section-head">
-    <h1>About the Project</h1>
-    <p>
-      AI-powered crop recommendation system for farmer development and
-      explainable decisions.
-    </p>
-  </div>
-  <article class="about">
-    <h3>What this platform does</h3>
-    <p>
-      It recommends the best crop from your input profile and environmental
-      factors, then explains why that recommendation is suitable.
-    </p>
-    <h3>Why this is industry-level</h3>
-    <ul>
-      <li>
-        Separate pages for dataset, preprocessing, EDA, model evaluation and
-        prediction flow.
-      </li>
-      <li>
-        CSV upload, append/replace, export and paginated dataset exploration.
-      </li>
-      <li>Model metrics and transparency reports for trust and governance.</li>
-      <li>
-        Farmer-focused education panel covering irrigation, soil, fertilizer and
-        weather impact.
-      </li>
-    </ul>
-    <h3>Tech Stack</h3>
-    <ul>
-      <li>Frontend: HTML, CSS, JavaScript, Chart.js</li>
-      <li>Backend: Flask + Pandas + scikit-learn</li>
-      <li>Models: Crop classifier + yield regressor pipelines</li>
-    </ul>
+{% extends "base.html" %} {% block title %}About | Crop Recommendation {%
+endblock %} {% block content %}
+<div class="container about-page">
+  <article class="about about-stack">
+    <section class="about-highlight">
+      <div class="about-section-head">
+        <span class="section-icon"><i class="fa-solid fa-bullseye"></i></span>
+        <div>
+          <h2>Our Mission</h2>
+          <p>
+            Agriculture feeds the world, yet most smallholder farmers lack
+            access to data-driven tools to receive crop recommendations in
+            advance.
+          </p>
+        </div>
+      </div>
+      <p class="about-copy">
+        This platform bridges that gap by combining historical market records
+        with machine learning models, delivering actionable crop recommendations
+        through a clean and accessible web interface.
+      </p>
+    </section>
+
+    <section class="about-grid">
+      <div class="about-card">
+        <div class="about-section-head compact">
+          <span class="section-icon"
+            ><i class="fa-solid fa-layer-group"></i
+          ></span>
+          <h3>What is crop recommendation?</h3>
+        </div>
+        <p>
+          Crop recommendation uses environmental and input attributes to
+          recommend the most suitable crop for a given field and season.
+        </p>
+      </div>
+
+      <div class="about-card">
+        <div class="about-section-head compact">
+          <span class="section-icon"
+            ><i class="fa-solid fa-chart-column"></i
+          ></span>
+          <h3>How this project is structured</h3>
+        </div>
+        <ul class="about-list">
+          <li>Dataset explorer to inspect the exact training dataset rows.</li>
+          <li>
+            Dashboard with trend, monthly, state and commodity visual analytics.
+          </li>
+          <li>
+            Prediction module with connected State, District, Market, Commodity
+            and Variety workflow.
+          </li>
+          <li>Model evaluation module for comparative train/test metrics.</li>
+          <li>
+            Data preprocessing and EDA pages for transparency of pipeline steps.
+          </li>
+        </ul>
+      </div>
+
+      <div class="about-card about-full-width">
+        <div class="about-section-head compact">
+          <span class="section-icon"><i class="fa-solid fa-gears"></i></span>
+          <h3>Tech Stack</h3>
+        </div>
+        <div class="about-tech-grid">
+          <div><strong>Frontend:</strong> HTML, CSS, JavaScript, Chart.js</div>
+          <div><strong>Backend:</strong> Flask + Pandas + scikit-learn</div>
+          <div><strong>Models:</strong> Crop price regression pipelines</div>
+        </div>
+      </div>
+    </section>
   </article>
 </div>
 {% endblock %}

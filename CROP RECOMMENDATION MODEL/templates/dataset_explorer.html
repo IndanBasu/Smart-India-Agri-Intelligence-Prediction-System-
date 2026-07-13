@@ -75,7 +75,7 @@ Recommendation Prediction{% endblock %} {% block content %}
         {% if page > 1 %}<a
           class="ghost-btn"
           href="{{ url_for('dataset_explorer', q=query, sort=sort_by, order=order, page=page-1) }}"
-          >Previous</a
+          >Previous Step</a
         >{% endif %} {% if page < total_pages %}<a
           class="ghost-btn"
           href="{{ url_for('dataset_explorer', q=query, sort=sort_by, order=order, page=page+1) }}"

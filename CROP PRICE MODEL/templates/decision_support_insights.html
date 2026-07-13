@@ -156,6 +156,22 @@ Price Model{% endblock %} {% block content %}
       </div>
     </div>
   </div>
+  <div
+    class="d-flex justify-content-between align-items-center mt-4 pt-3 flex-wrap gap-3"
+  >
+    <a
+      href="{{ url_for('test_application_page') }}"
+      class="btn btn-outline-success px-4 py-2"
+    >
+      <i class="fa-solid fa-arrow-left me-2"></i>Previous Step
+    </a>
+    <a
+      href="{{ url_for('live_monitoring_optimization_page') }}"
+      class="btn btn-success px-4 py-2"
+    >
+      Next Step<i class="fa-solid fa-arrow-right ms-2"></i>
+    </a>
+  </div>
 </section>
 {% endblock %} {% block scripts %}
 <script>

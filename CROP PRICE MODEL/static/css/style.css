@@ -140,6 +140,7 @@ h5 {
   background: rgba(255, 255, 255, 0.92);
   border-radius: 16px;
   box-shadow: 0 14px 35px rgba(20, 35, 20, 0.12);
+  margin-bottom: 1.5rem;
 }
 
 .hero-visual-card {
@@ -230,6 +231,7 @@ h5 {
 
 .page-section {
   padding-top: 5.5rem;
+  padding-bottom: 3rem;
   background: linear-gradient(180deg, #f2f8f3 0%, #e8f2ea 100%);
   border: 1px solid #d7e5d9;
   border-radius: 18px;
@@ -435,6 +437,7 @@ h5 {
   background: #ffffff;
   border-radius: 12px;
   border: 1px solid #e4edf2;
+  margin-bottom: 0.75rem;
   padding: 0.9rem;
 }
 
@@ -479,6 +482,7 @@ h5 {
 
 .metric-mini {
   padding: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .metric-mini h4 {

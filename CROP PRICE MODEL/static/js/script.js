@@ -122,6 +122,157 @@ function exportPredictionBundle(bundle) {
   URL.revokeObjectURL(jsonUrl);
 }
 
+function getJsPdfConstructor() {
+  if (!window.jspdf) {
+    return null;
+  }
+  return window.jspdf.jsPDF || window.jspdf.default || null;
+}
+
+function downloadTextFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildPredictionCsv(bundle) {
+  const payload = bundle?.payload || {};
+  const result = bundle?.data || {};
+  const details = result.details || {};
+  const text = (id) => {
+    const node = document.getElementById(id);
+    return node ? node.textContent.trim().replace(/\s+/g, " ") : "";
+  };
+  const listText = (id) =>
+    Array.from(document.querySelectorAll(`#${id} li`))
+      .map((li) => li.textContent.trim())
+      .filter(Boolean)
+      .join(" | ");
+  const rows = [
+    ["Section", "Metric", "Value"],
+    ["Summary", "State", payload.state],
+    ["Summary", "District", payload.district],
+    ["Summary", "Market", payload.market],
+    ["Summary", "Commodity", payload.commodity],
+    ["Summary", "Variety", payload.variety],
+    ["Summary", "Arrival Date", payload.arrival_date],
+    ["Summary", "Minimum Price", payload.min_price],
+    ["Summary", "Maximum Price", payload.max_price],
+    ["Summary", "Predicted Price", result.predicted_price],
+    ["Summary", "Current Market Price", result.current_market_price],
+    ["Summary", "Profit Delta", result.profit_delta],
+    ["Summary", "Recommendation", result.recommendation],
+    ["Summary", "Recommendation Status", result.recommendation_status],
+    ["Summary", "Confidence", result.confidence],
+    ["Summary", "Best Market", result.best_market],
+    ["Summary", "Price Trend", result.price_trend],
+    ["Price Analysis", "Historical Market Range", text("analysisRange")],
+    ["Price Analysis", "Average Price (Historical)", text("analysisAvg")],
+    ["Price Analysis", "Predicted vs Market", text("analysisDiff")],
+    ["Price Analysis", "Price Volatility Index", text("analysisVolatility")],
+    ["Price Analysis", "Insight", text("analysisInsight")],
+    ["Risk Assessment", "Market Concentration Risk", text("riskConcentration")],
+    ["Risk Assessment", "Data Availability", text("riskData")],
+    ["Risk Assessment", "Seasonal Risk", text("riskSeasonal")],
+    ["Risk Assessment", "Overall Risk Level", text("riskOverall")],
+    ["Risk Assessment", "Advice", text("riskAdvice")],
+    ["Profit Calculator", "Quantity (Tons)", text("profitQty")],
+    ["Profit Calculator", "Production Cost", text("profitCost")],
+    ["Profit Calculator", "Transport Cost", text("profitTransport")],
+    ["Profit Calculator", "Expected Revenue", text("profitRevenue")],
+    ["Profit Calculator", "Total Cost", text("profitTotalCost")],
+    ["Profit Calculator", "Net Profit/Loss", text("profitNet")],
+    ["Seasonal Analysis", "Current Month Position", text("seasonalPosition")],
+    ["Seasonal Analysis", "Peak Season Price", text("seasonalPeak")],
+    ["Seasonal Analysis", "Low Season Price", text("seasonalLow")],
+    ["Seasonal Analysis", "Seasonal Variation", text("seasonalVariation")],
+    ["Seasonal Analysis", "Advice", text("seasonalAdvice")],
+    ["Market Comparison", "Selected Market", text("compSelected")],
+    ["Market Comparison", "Best Market Option", text("compBest")],
+    ["Market Comparison", "Advice", text("compAdvice")],
+    ["Historical Performance", "Summary", text("historicalStats")],
+    ["Farmer Insights & Tips", "Tips", listText("educationTipsContainer")],
+    ["Details", "Forecast Band Low", details.forecast_band?.low ?? ""],
+    ["Details", "Forecast Band High", details.forecast_band?.high ?? ""],
+    ["Details", "Market Data Points", details.market_data_points ?? ""],
+    ["Details", "Variety Data Points", details.variety_data_points ?? ""],
+    ["Details", "Prediction Updated At", details.updated_at || ""],
+  ];
+
+  return rows
+    .map((row) =>
+      row
+        .map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+}
+
+async function exportNodeAsImage(node, filename) {
+  if (!node || !window.html2canvas) {
+    alert("Image export is not available right now.");
+    return;
+  }
+
+  const canvas = await window.html2canvas(node, {
+    backgroundColor: "#ffffff",
+    scale: 2,
+    useCORS: true,
+  });
+
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function exportNodeAsPdf(node, filename) {
+  const PdfCtor = getJsPdfConstructor();
+  if (!node || !PdfCtor || !window.html2canvas) {
+    alert("PDF export is not available right now.");
+    return;
+  }
+
+  const canvas = await window.html2canvas(node, {
+    backgroundColor: "#ffffff",
+    scale: 2,
+    useCORS: true,
+  });
+
+  const pdf = new PdfCtor({
+    orientation: canvas.width > canvas.height ? "landscape" : "portrait",
+    unit: "pt",
+    format: "a4",
+  });
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+  const width = canvas.width * ratio;
+  const height = canvas.height * ratio;
+  const x = (pageWidth - width) / 2;
+  const y = (pageHeight - height) / 2;
+
+  pdf.addImage(
+    canvas.toDataURL("image/jpeg", 0.95),
+    "JPEG",
+    x,
+    y,
+    width,
+    height,
+  );
+  pdf.save(filename);
+}
+
 function animateCounters() {
   document.querySelectorAll(".counter").forEach((el) => {
     const target = Number(el.dataset.target || 0);
@@ -166,6 +317,15 @@ async function setupPredictForm() {
   const autoSyncEl = document.getElementById("predictAutoSync");
   const autoSyncStatusEl = document.getElementById("predictAutoSyncStatus");
   const exportBtn = document.getElementById("exportPredictionDetailsBtn");
+  const currentJpgBtn = document.getElementById(
+    "exportCurrentPredictionJpgBtn",
+  );
+  const currentPdfBtn = document.getElementById(
+    "exportCurrentPredictionPdfBtn",
+  );
+  const currentCsvBtn = document.getElementById(
+    "exportCurrentPredictionCsvBtn",
+  );
   const historyTableBody = document.getElementById("predictHistoryTableBody");
   const importHistoryBtn = document.getElementById("importPredictHistoryBtn");
   const exportHistoryBtn = document.getElementById("exportPredictHistoryBtn");
@@ -177,6 +337,59 @@ async function setupPredictForm() {
   let latestCoverageText = "--";
 
   const csvEscape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+  const updateCurrentExportState = () => {
+    const hasBundle = !!readLatestPredictionBundle();
+    [currentJpgBtn, currentPdfBtn, currentCsvBtn].forEach((btn) => {
+      if (btn) {
+        btn.disabled = !hasBundle;
+      }
+    });
+  };
+
+  const exportCurrentCsv = () => {
+    const bundle = readLatestPredictionBundle();
+    if (!bundle) {
+      alert("No prediction available to export yet.");
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    downloadTextFile(
+      buildPredictionCsv(bundle),
+      `prediction_details_${stamp}.csv`,
+      "text/csv;charset=utf-8;",
+    );
+  };
+
+  const exportCurrentImage = async () => {
+    const bundle = readLatestPredictionBundle();
+    if (!bundle) {
+      alert("No prediction available to export yet.");
+      return;
+    }
+    const target = document.querySelector(".page-section.container.py-5");
+    if (!target) {
+      alert("Result panel is not available for export.");
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    await exportNodeAsImage(target, `prediction_details_${stamp}.jpg`);
+  };
+
+  const exportCurrentPdf = async () => {
+    const bundle = readLatestPredictionBundle();
+    if (!bundle) {
+      alert("No prediction available to export yet.");
+      return;
+    }
+    const target = document.querySelector(".page-section.container.py-5");
+    if (!target) {
+      alert("Result panel is not available for export.");
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    await exportNodeAsPdf(target, `prediction_details_${stamp}.pdf`);
+  };
 
   const readHistoryRows = () => {
     try {
@@ -999,6 +1212,10 @@ async function setupPredictForm() {
 
   exportBtn?.addEventListener("click", exportPredictionDetails);
 
+  currentJpgBtn?.addEventListener("click", exportCurrentImage);
+  currentPdfBtn?.addEventListener("click", exportCurrentPdf);
+  currentCsvBtn?.addEventListener("click", exportCurrentCsv);
+  updateCurrentExportState();
   importHistoryBtn?.addEventListener("click", () => {
     historyImportInput?.click();
   });
@@ -1127,6 +1344,7 @@ async function setupPredictForm() {
     try {
       const result = await runPrediction(payload);
       saveLatestPredictionBundle(payload, result);
+      updateCurrentExportState();
       appendPredictHistoryRow(payload, result);
       if (autoSyncStatusEl)
         autoSyncStatusEl.textContent = `Last prediction: ${new Date().toLocaleTimeString()} (manual submit)`;
@@ -1884,12 +2102,16 @@ async function setupBasicInfo() {
 
   const refreshBtn = document.getElementById("refreshBasicInfo");
   const updatedAt = document.getElementById("basicInfoUpdatedAt");
+  const coverage = document.getElementById("basicCoverage");
 
   const load = async () => {
     showLoader(true);
     try {
       const data = await fetchJsonWithTimeout("/api/basic_info", 20000);
       document.getElementById("basicHead").innerHTML = data.head_html;
+      if (coverage && data.coverage_html) {
+        coverage.innerHTML = data.coverage_html;
+      }
       document.getElementById("basicShape").textContent =
         `(${data.shape[0]}, ${data.shape[1]})`;
       document.getElementById("basicDescribe").innerHTML = data.desc_html;

@@ -149,8 +149,11 @@
 
             <!-- Result panel -->
             <div id="predictionPlaceholder" class="result-empty-state">
-              <i class="bi bi-bar-chart-steps"></i>
-              <p>
+              <i
+                class="bi bi-bar-chart-steps"
+                style="font-size: 2.5rem; color: #b0b7b0"
+              ></i>
+              <p class="mt-3 mb-0" style="color: #5a5f5a; font-size: 1.1rem">
                 Fill the form and click <strong>Predict Yield</strong> to see
                 results here.
               </p>
@@ -208,6 +211,39 @@
                 </p>
                 <p id="predictionExplanation" class="mb-2 small"></p>
                 <ul id="factorList" class="mb-0 small"></ul>
+              </div>
+
+              <div
+                class="d-flex justify-content-end align-items-center my-3"
+                style="gap: 0.5rem"
+              >
+                <button
+                  type="button"
+                  id="exportCurrentYieldJpgBtn"
+                  class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold"
+                  style="min-width: 70px"
+                  disabled
+                >
+                  JPEG
+                </button>
+                <button
+                  type="button"
+                  id="exportCurrentYieldPdfBtn"
+                  class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold"
+                  style="min-width: 70px"
+                  disabled
+                >
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  id="exportCurrentYieldCsvBtn"
+                  class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold"
+                  style="min-width: 70px"
+                  disabled
+                >
+                  CSV
+                </button>
               </div>
 
               <a
@@ -344,4 +380,4 @@
     </div>
   </div>
 </section>
-{% endblock %} {% block extra_scripts %}{% endblock %}
+{% endblock %}

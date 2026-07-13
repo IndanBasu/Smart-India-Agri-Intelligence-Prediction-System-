@@ -268,6 +268,7 @@ Recommendation Prediction{% endblock %} {% block content %}
 
   <script>
     window.dashboardData = {{ result.charts | tojson }};
+    window.predictionResultData = {{ result | tojson }};
   </script>
   {% endif %}
 </div>

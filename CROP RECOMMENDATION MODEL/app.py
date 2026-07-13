@@ -2,13 +2,21 @@ from flask import Flask, render_template, request, redirect, url_for, session, s
 from pathlib import Path
 from datetime import datetime
 from functools import lru_cache, wraps
-from io import StringIO
+from io import StringIO, BytesIO
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-import threading
 
 import joblib
 import numpy as np
 import pandas as pd
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle, Image as RLImage
+from reportlab.lib import colors
+from PIL import Image, ImageDraw, ImageFont
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
@@ -26,11 +34,13 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import SVR
 
+
 # Thread pool for timeout operations
 _executor = ThreadPoolExecutor(max_workers=2)
 
 app = Flask(__name__)
 app.secret_key = "crop_prediction_secret"
+
 
 # Timeout wrapper for expensive operations (max 5 seconds)
 def with_timeout(timeout_sec=5):
@@ -114,54 +124,6 @@ def normalized_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-# ---------- Domain Logic ----------
-def build_farmer_recommendations(crop_name, humidity, rainfall, temperature):
-    recommendations = {}
-    if rainfall < 2:
-        recommendations["irrigation"] = (
-            "Critical: Implement drip irrigation. Apply 20-25mm every 7-10 days and monitor soil moisture at 30cm depth."
-        )
-    elif rainfall < 5:
-        recommendations["irrigation"] = (
-            "Moderate: Combine rainfall with supplementary irrigation every 15-20 days. Maintain field drainage."
-        )
-    else:
-        recommendations["irrigation"] = (
-            "Adequate rainfall: irrigate only during dry spells and avoid waterlogging through proper drainage."
-        )
-
-    if humidity < 30:
-        recommendations["soil"] = (
-            "Dry climate: add 25-30 tons compost/hectare and mulch to reduce evaporation."
-        )
-    elif humidity < 50:
-        recommendations["soil"] = (
-            "Moderate humidity: maintain 2-3% organic matter and run periodic soil tests for nutrient balancing."
-        )
-    else:
-        recommendations["soil"] = (
-            "High humidity: prioritize soil aeration and drainage; monitor fungal disease pressure."
-        )
-
-    if temperature > 35:
-        recommendations["temperature"] = (
-            "Heat stress risk: increase irrigation frequency and schedule operations during cool hours."
-        )
-    elif temperature < 15:
-        recommendations["temperature"] = (
-            "Low temperature risk: use protective measures and cold-resilient varieties."
-        )
-    else:
-        recommendations["temperature"] = (
-            f"Temperature is favorable for {crop_name}. Maintain regular monitoring and standard practices."
-        )
-
-    recommendations["fertilizer"] = (
-        f"For {crop_name}: apply balanced NPK in split doses (50% basal, 25% vegetative, 25% flowering)."
-    )
-    return recommendations
-
-
 def build_insights(crop_name, predicted_yield, production, location, humidity):
     place = location if location else "your region"
     weather_line = (
@@ -173,6 +135,60 @@ def build_insights(crop_name, predicted_yield, production, location, humidity):
         {"title": "Weather Assessment", "content": weather_line, "icon": "*"},
         {"title": "Yield Forecast", "content": f"Expected yield: {round(predicted_yield, 2)} tons/hectare.", "icon": "*"},
     ]
+
+
+def build_farmer_recommendations(crop_name, humidity, rainfall, temperature):
+    if rainfall < 1.5:
+        irrigation = (
+            f"Very low rainfall detected for {crop_name}. Use drip or sprinkler irrigation and schedule 2-3 light watering cycles per week."
+        )
+    elif rainfall < 5:
+        irrigation = (
+            f"Moderate rainfall conditions for {crop_name}. Combine rainfall with supplemental irrigation during dry intervals."
+        )
+    else:
+        irrigation = (
+            f"Rainfall is currently adequate for {crop_name}. Focus on moisture retention and avoid over-irrigation."
+        )
+
+    if humidity < 40:
+        soil = (
+            "Low humidity can dry topsoil quickly. Apply mulching and add organic matter to improve water-holding capacity."
+        )
+    elif humidity > 75:
+        soil = (
+            "High humidity increases disease pressure. Improve drainage and maintain good field aeration to protect root health."
+        )
+    else:
+        soil = (
+            "Soil moisture conditions are balanced. Continue periodic loosening and organic compost application for stable growth."
+        )
+
+    if temperature > 34:
+        fertilizer = (
+            "High temperature conditions: apply fertilizers in split doses and prefer evening application to reduce nutrient loss."
+        )
+    elif temperature < 15:
+        fertilizer = (
+            "Cool temperature conditions: use balanced NPK in smaller doses and avoid heavy nitrogen at once."
+        )
+    else:
+        fertilizer = (
+            "Use a balanced fertilizer schedule based on growth stage, with emphasis on nitrogen during vegetative growth and potash near maturity."
+        )
+
+    temperature_tip = ""
+    if temperature > 36:
+        temperature_tip = "Heat alert: consider shade nets for sensitive stages and irrigate during cooler hours."
+    elif temperature < 10:
+        temperature_tip = "Cold stress risk: protect young plants with cover and avoid early-morning irrigation."
+
+    return {
+        "irrigation": irrigation,
+        "soil": soil,
+        "fertilizer": fertilizer,
+        "temperature": temperature_tip,
+    }
 
 
 def estimate_crop_price_per_ton(economic_use, season, climate_type, predicted_yield):
@@ -767,9 +783,10 @@ def home():
 @app.route("/crop-predictor", methods=["GET", "POST"])
 def crop_predictor():
     history = session.get("prediction_history", [])
+    result = session.get("result")
 
     if request.method == "GET":
-        return render_template("crop_predictor.html", history=history)
+        return render_template("crop_predictor.html", history=history, result=result)
 
     def parse_optional_float(field_name, default_value):
         raw = (request.form.get(field_name, "") or "").strip()
@@ -931,8 +948,8 @@ def crop_predictor():
     session["prediction_history"] = history[:10]
     session.modified = True
 
-    # Attach a cache-busting query value so each prediction opens a fresh result URL.
-    return redirect(url_for("prediction_result", v=int(datetime.now().timestamp() * 1000)))
+    # Display result inline on predictor page
+    return render_template("crop_predictor.html", history=history, result=result_payload)
 
 
 @app.route("/prediction-result")
@@ -971,6 +988,216 @@ def prediction_history_export():
     response = make_response(csv_data)
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = "attachment; filename=prediction_history.csv"
+    return response
+
+
+@app.route("/prediction-result/export/csv")
+def export_result_csv():
+    """Export current prediction result as CSV"""
+    result = session.get("result")
+    if not result:
+        return redirect(url_for("crop_predictor"))
+    
+    # Flatten the result data into a single row CSV
+    csv_data = pd.DataFrame([{
+        "Recommended Crop": result.get("crop", ""),
+        "Predicted Yield (tons/hectare)": result.get("yield", ""),
+        "Estimated Production (tons)": result.get("production", ""),
+        "Price Per Ton (INR)": result.get("price_per_ton", ""),
+        "Estimated Revenue (INR)": result.get("estimated_revenue", ""),
+        "Season": result.get("season", ""),
+        "Crop Type": result.get("crop_type", ""),
+        "Water Source": result.get("water_source", ""),
+        "Climate Type": result.get("climate_type", ""),
+        "Duration Type": result.get("duration_type", ""),
+        "Farming System": result.get("farming_system", ""),
+        "Economic Use": result.get("economic_use", ""),
+        "Temperature (°C)": result.get("temperature", ""),
+        "Humidity (%)": result.get("humidity", ""),
+        "Rainfall (mm)": result.get("rainfall", ""),
+        "Location": result.get("location", ""),
+    }]).to_csv(index=False)
+    
+    response = make_response(csv_data)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f"attachment; filename=prediction_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return response
+
+
+@app.route("/prediction-result/export/pdf")
+def export_result_pdf():
+    """Export current prediction result as PDF"""
+    result = session.get("result")
+    if not result:
+        return redirect(url_for("crop_predictor"))
+    
+    # Create PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#2d5016'),
+        spaceAfter=12,
+        fontName='Helvetica-Bold'
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#4a7c2c'),
+        spaceAfter=8,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Title
+    story.append(Paragraph("Crop Recommendation Prediction Report", title_style))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Key Results Table
+    story.append(Paragraph("Key Predictions", heading_style))
+    key_data = [
+        ["Metric", "Value"],
+        ["Recommended Crop", str(result.get("crop", ""))],
+        ["Predicted Yield", f"{result.get('yield', '')} tons/hectare"],
+        ["Estimated Production", f"{result.get('production', '')} tons"],
+        ["Price Per Ton", f"INR {result.get('price_per_ton', '')}"],
+        ["Estimated Revenue", f"INR {result.get('estimated_revenue', '')}"],
+    ]
+    key_table = Table(key_data, colWidths=[2.5*inch, 3.5*inch])
+    key_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a7c2c')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f4dc')]),
+    ]))
+    story.append(key_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Input Factors
+    story.append(Paragraph("Input Parameters", heading_style))
+    input_data = [
+        ["Parameter", "Value"],
+        ["Season", str(result.get("season", ""))],
+        ["Crop Type", str(result.get("crop_type", ""))],
+        ["Water Source", str(result.get("water_source", ""))],
+        ["Climate Type", str(result.get("climate_type", ""))],
+        ["Duration Type", str(result.get("duration_type", ""))],
+        ["Farming System", str(result.get("farming_system", ""))],
+        ["Economic Use", str(result.get("economic_use", ""))],
+        ["Temperature", f"{result.get('temperature', '')}°C"],
+        ["Humidity", f"{result.get('humidity', '')}%"],
+        ["Rainfall", f"{result.get('rainfall', '')} mm"],
+        ["Location", str(result.get("location", ""))],
+    ]
+    input_table = Table(input_data, colWidths=[2.5*inch, 3.5*inch])
+    input_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a7c2c')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f4dc')]),
+    ]))
+    story.append(input_table)
+    story.append(Spacer(1, 0.2*inch))
+    story.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    
+    response = make_response(send_file(buffer, mimetype="application/pdf"))
+    response.headers["Content-Disposition"] = f"attachment; filename=prediction_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    return response
+
+
+@app.route("/prediction-result/export/jpeg")
+def export_result_jpeg():
+    """Export current prediction result as JPEG image"""
+    result = session.get("result")
+    if not result:
+        return redirect(url_for("crop_predictor"))
+    
+    # Create image
+    width, height = 1200, 1400
+    image = Image.new('RGB', (width, height), color='white')
+    draw = ImageDraw.Draw(image)
+    
+    # Try to use a better font, fall back to default
+    try:
+        title_font = ImageFont.truetype("arial.ttf", 36)
+        heading_font = ImageFont.truetype("arial.ttf", 24)
+        text_font = ImageFont.truetype("arial.ttf", 16)
+        small_font = ImageFont.truetype("arial.ttf", 14)
+    except:
+        title_font = heading_font = text_font = small_font = ImageFont.load_default()
+    
+    y_offset = 40
+    line_height = 35
+    
+    # Title
+    draw.text((50, y_offset), "Crop Recommendation Prediction Report", fill='#2d5016', font=title_font)
+    y_offset += line_height + 20
+    
+    # Generate Date
+    draw.text((50, y_offset), f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", fill='#666666', font=small_font)
+    y_offset += line_height + 20
+    
+    # Key Results
+    draw.rectangle([(40, y_offset), (1160, y_offset + 30)], fill='#4a7c2c')
+    draw.text((50, y_offset + 5), "KEY PREDICTIONS", fill='white', font=heading_font)
+    y_offset += 50
+    
+    key_info = [
+        f"🌾 Recommended Crop: {result.get('crop', 'N/A')}",
+        f"📊 Predicted Yield: {result.get('yield', 'N/A')} tons/hectare",
+        f"📦 Estimated Production: {result.get('production', 'N/A')} tons",
+        f"💰 Price Per Ton: INR {result.get('price_per_ton', 'N/A')}",
+        f"💵 Estimated Revenue: INR {result.get('estimated_revenue', 'N/A')}",
+    ]
+    
+    for info in key_info:
+        draw.text((50, y_offset), info, fill='#333333', font=text_font)
+        y_offset += line_height
+    
+    y_offset += 20
+    
+    # Input Parameters
+    draw.rectangle([(40, y_offset), (1160, y_offset + 30)], fill='#4a7c2c')
+    draw.text((50, y_offset + 5), "INPUT PARAMETERS", fill='white', font=heading_font)
+    y_offset += 50
+    
+    input_info = [
+        f"Season: {result.get('season', 'N/A')} | Crop Type: {result.get('crop_type', 'N/A')}",
+        f"Water Source: {result.get('water_source', 'N/A')} | Climate: {result.get('climate_type', 'N/A')}",
+        f"Duration: {result.get('duration_type', 'N/A')} | System: {result.get('farming_system', 'N/A')}",
+        f"Economic Use: {result.get('economic_use', 'N/A')}",
+        f"Temperature: {result.get('temperature', 'N/A')}°C | Humidity: {result.get('humidity', 'N/A')}%",
+        f"Rainfall: {result.get('rainfall', 'N/A')} mm | Location: {result.get('location', 'N/A')}",
+    ]
+    
+    for info in input_info:
+        draw.text((50, y_offset), info, fill='#333333', font=text_font)
+        y_offset += line_height
+    
+    # Save to buffer
+    buffer = BytesIO()
+    image.save(buffer, format='JPEG', quality=95)
+    buffer.seek(0)
+    
+    response = make_response(send_file(buffer, mimetype="image/jpeg"))
+    response.headers["Content-Disposition"] = f"attachment; filename=prediction_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     return response
 
 

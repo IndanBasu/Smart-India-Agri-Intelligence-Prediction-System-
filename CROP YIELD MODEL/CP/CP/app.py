@@ -17,6 +17,7 @@ ADVANCED_BUNDLE_PATH = ROOT_DIR / "outputs" / "models" / "best_advanced_crop_yie
 ADVANCED_SCORES_PATH = ROOT_DIR / "outputs" / "advanced_model_scores.csv"
 MODEL_COMPARISON_PATH = ROOT_DIR / "outputs" / "model_comparison_scores.csv"
 MERGED_DATA_PATH = ROOT_DIR / "outputs" / "merged_crop_dataset.csv"
+MERGED_STATE_DATA_PATH = ROOT_DIR / "outputs" / "merged_crop_dataset.csv"
 FEATURE_COLUMNS = [
     "Year",
     "average_rain_fall_mm_per_year",
@@ -67,8 +68,37 @@ def build_summary_stats(df):
 
 
 def build_chart_payload(df):
+    chart_df = df
+    if MERGED_STATE_DATA_PATH.exists():
+        try:
+            merged_df = pd.read_csv(MERGED_STATE_DATA_PATH)
+            required_columns = {
+                "State",
+                "Crop",
+                "Year",
+                "Yield",
+                "Annual_Rainfall",
+                "Temperature_C",
+            }
+            if required_columns.issubset(merged_df.columns):
+                chart_df = merged_df
+        except Exception:
+            chart_df = df
+
+    state_column = "State" if "State" in chart_df.columns else "Area"
+    crop_column = "Crop" if "Crop" in chart_df.columns else "Item"
+    yield_column = "Yield" if "Yield" in chart_df.columns else "hg/ha_yield"
+    rainfall_column = (
+        "Annual_Rainfall"
+        if "Annual_Rainfall" in chart_df.columns
+        else "average_rain_fall_mm_per_year"
+    )
+    temperature_column = (
+        "Temperature_C" if "Temperature_C" in chart_df.columns else "avg_temp"
+    )
+
     crop_yield = (
-        df.groupby("Item")["hg/ha_yield"]
+        chart_df.groupby(crop_column)[yield_column]
         .mean()
         .sort_values(ascending=False)
         .head(10)
@@ -76,24 +106,24 @@ def build_chart_payload(df):
     )
 
     rainfall_scatter = (
-        df[["average_rain_fall_mm_per_year", "hg/ha_yield"]]
-        .sample(min(300, len(df)), random_state=42)
-        .sort_values("average_rain_fall_mm_per_year")
+        chart_df[[rainfall_column, yield_column]]
+        .sample(min(300, len(chart_df)), random_state=42)
+        .sort_values(rainfall_column)
     )
 
     temperature_scatter = (
-        df[["avg_temp", "hg/ha_yield"]]
-        .sample(min(300, len(df)), random_state=19)
-        .sort_values("avg_temp")
+        chart_df[[temperature_column, yield_column]]
+        .sample(min(300, len(chart_df)), random_state=19)
+        .sort_values(temperature_column)
     )
 
     historical_yield = (
-        df.groupby("Year")["hg/ha_yield"].mean().sort_index().round(2)
+        chart_df.groupby("Year")[yield_column].mean().sort_index().round(2)
     )
 
-    crop_distribution = df["Item"].value_counts().head(10)
+    crop_distribution = chart_df[crop_column].value_counts().head(10)
     area_yield = (
-        df.groupby("Area")["hg/ha_yield"]
+        chart_df.groupby(state_column)[yield_column]
         .mean()
         .sort_values(ascending=False)
         .head(12)
@@ -102,27 +132,27 @@ def build_chart_payload(df):
 
     return {
         "crop_yield_comparison": {
-            "labels": crop_yield.index.tolist(),
+            "labels": crop_yield.index.astype(str).str.title().tolist(),
             "values": crop_yield.values.tolist(),
         },
         "rainfall_vs_yield": {
-            "x": rainfall_scatter["average_rain_fall_mm_per_year"].round(2).tolist(),
-            "y": rainfall_scatter["hg/ha_yield"].round(2).tolist(),
+            "x": rainfall_scatter[rainfall_column].round(2).tolist(),
+            "y": rainfall_scatter[yield_column].round(2).tolist(),
         },
         "temperature_vs_yield": {
-            "x": temperature_scatter["avg_temp"].round(2).tolist(),
-            "y": temperature_scatter["hg/ha_yield"].round(2).tolist(),
+            "x": temperature_scatter[temperature_column].round(2).tolist(),
+            "y": temperature_scatter[yield_column].round(2).tolist(),
         },
         "historical_yield_trends": {
             "labels": historical_yield.index.astype(str).tolist(),
             "values": historical_yield.values.tolist(),
         },
         "crop_distribution": {
-            "labels": crop_distribution.index.tolist(),
+            "labels": crop_distribution.index.astype(str).str.title().tolist(),
             "values": crop_distribution.values.tolist(),
         },
         "area_vs_production": {
-            "labels": area_yield.index.tolist(),
+            "labels": area_yield.index.astype(str).str.title().tolist(),
             "values": area_yield.values.tolist(),
         },
     }

@@ -88,7 +88,7 @@ Workflow{% endblock %} {% block extra_head %}
     {% if workflow.prev_step %}<a
       class="ghost-btn"
       href="{{ url_for(workflow.prev_step.endpoint) }}"
-      >Previous</a
+      >Previous Step</a
     >{% else %}<span></span>{% endif %} {% if workflow.next_step %}<a
       class="cta-btn"
       href="{{ url_for(workflow.next_step.endpoint) }}"

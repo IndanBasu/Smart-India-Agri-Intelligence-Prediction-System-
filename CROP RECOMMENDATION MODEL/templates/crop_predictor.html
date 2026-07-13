@@ -1,4 +1,4 @@
-{% extends "base.html" %} {% block title %}Crop Predictor{% endblock %} {% block
+﻿{% extends "base.html" %} {% block title %}Crop Predictor{% endblock %} {% block
 content %}
 <div class="container" style="padding: 24px 0 36px">
   <div class="section-head" style="margin-bottom: 1.2rem">
@@ -18,6 +18,208 @@ content %}
     <h3>Error</h3>
     <p>{{ error }}</p>
   </article>
+  {% endif %} {% if result %}
+  <section
+    class="result-section reveal"
+    style="
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, #f0f4dc 0%, #ffffff 100%);
+      border-radius: 8px;
+      border: 2px solid #4a7c2c;
+    "
+  >
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      "
+    >
+      <h2 style="margin: 0; color: #2d5016">
+        <i class="fa-solid fa-check-circle"></i> Your Prediction Result
+      </h2>
+      <button
+        type="button"
+        id="toggleResultBtn"
+        class="ghost-btn"
+        style="
+          padding: 0.45rem 0.9rem;
+          background: #4a7c2c;
+          color: white;
+          border: none;
+          border-radius: 4px;
+        "
+      >
+        Hide
+      </button>
+    </div>
+
+    <div id="resultContent">
+      <div
+        class="result-kpi-grid"
+        style="
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 1rem;
+          margin-bottom: 1rem;
+        "
+      >
+        <article
+          class="kpi-card"
+          style="
+            padding: 1rem;
+            background: white;
+            border-left: 4px solid #4a7c2c;
+          "
+        >
+          <h3>Recommended Crop</h3>
+          <p>{{ result.crop }}</p>
+        </article>
+        <article
+          class="kpi-card"
+          style="
+            padding: 1rem;
+            background: white;
+            border-left: 4px solid #3498db;
+          "
+        >
+          <h3>Predicted Yield</h3>
+          <p>{{ result.yield }} t/ha</p>
+        </article>
+        <article
+          class="kpi-card"
+          style="
+            padding: 1rem;
+            background: white;
+            border-left: 4px solid #e74c3c;
+          "
+        >
+          <h3>Production</h3>
+          <p>{{ result.production }} tons</p>
+        </article>
+        <article
+          class="kpi-card"
+          style="
+            padding: 1rem;
+            background: white;
+            border-left: 4px solid #27ae60;
+          "
+        >
+          <h3>Revenue</h3>
+          <p>INR {{ result.estimated_revenue }}</p>
+        </article>
+      </div>
+
+      <div
+        style="
+          background: white;
+          padding: 1rem;
+          border-radius: 6px;
+          margin-bottom: 1rem;
+        "
+      >
+        <h3 style="color: #2d5016; margin-top: 0">Input Parameters</h3>
+        <p style="font-size: 0.9rem; color: #555; line-height: 1.5; margin: 0">
+          <strong>Season:</strong> {{ result.season }} |
+          <strong>Crop Type:</strong> {{ result.crop_type }} |
+          <strong>Water:</strong> {{ result.water_source }} |
+          <strong>Climate:</strong> {{ result.climate_type }} |
+          <strong>Duration:</strong> {{ result.duration_type }}
+          <br />
+          <strong>System:</strong> {{ result.farming_system }} |
+          <strong>Use:</strong> {{ result.economic_use }} |
+          <strong>Temp:</strong> {{ result.temperature }} deg C |
+          <strong>Humidity:</strong> {{ result.humidity }}% |
+          <strong>Rainfall:</strong> {{ result.rainfall }} mm |
+          <strong>Location:</strong> {{ result.location }}
+        </p>
+      </div>
+
+      <div
+        style="
+          margin-top: 1rem;
+          padding: 1rem;
+          background: linear-gradient(135deg, #f0f4dc 0%, #ffffff 100%);
+          border-radius: 8px;
+          border-left: 4px solid #4a7c2c;
+        "
+      >
+        <h3 style="margin: 0 0 0.8rem 0; color: #2d5016; font-size: 1.1rem">
+          <i class="fa-solid fa-download"></i> Export Report
+        </h3>
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap">
+          <a
+            href="{{ url_for('export_result_jpeg') }}"
+            class="cta-btn"
+            style="
+              background-color: #3498db;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.5rem;
+              padding: 0.75rem 1.5rem;
+              text-decoration: none;
+              border-radius: 4px;
+              color: white;
+              font-weight: 500;
+            "
+          >
+            <i class="fa-solid fa-image"></i> JPEG
+          </a>
+          <a
+            href="{{ url_for('export_result_pdf') }}"
+            class="cta-btn"
+            style="
+              background-color: #e74c3c;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.5rem;
+              padding: 0.75rem 1.5rem;
+              text-decoration: none;
+              border-radius: 4px;
+              color: white;
+              font-weight: 500;
+            "
+          >
+            <i class="fa-solid fa-file-pdf"></i> PDF
+          </a>
+          <a
+            href="{{ url_for('export_result_csv') }}"
+            class="cta-btn"
+            style="
+              background-color: #4a7c2c;
+              display: inline-flex;
+              align-items: center;
+              gap: 0.5rem;
+              padding: 0.75rem 1.5rem;
+              text-decoration: none;
+              border-radius: 4px;
+              color: white;
+              font-weight: 500;
+            "
+          >
+            <i class="fa-solid fa-file-csv"></i> CSV
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    document
+      .getElementById("toggleResultBtn")
+      .addEventListener("click", function () {
+        const content = document.getElementById("resultContent");
+        if (content.style.display === "none") {
+          content.style.display = "block";
+          this.textContent = "Hide";
+        } else {
+          content.style.display = "none";
+          this.textContent = "Show";
+        }
+      });
+  </script>
   {% endif %}
 
   <article class="weather-panel" style="margin-bottom: 1rem">
@@ -31,7 +233,6 @@ content %}
         <i class="fa-solid fa-cloud-sun"></i> Weather
       </button>
     </div>
-
     <div id="weatherPanel" class="hidden" style="margin-top: 1rem">
       <div class="weather-grid">
         <article class="weather-card">
@@ -66,130 +267,379 @@ content %}
   >
     <input type="hidden" name="rainfall" id="rainfallInput" value="0" />
 
-    <label>
-      <span>Temperature (deg C)</span>
-      <input type="number" step="any" name="temperature" />
-    </label>
-
-    <label>
-      <span>Humidity (%)</span>
-      <input type="number" step="any" name="humidity" />
-    </label>
-
-    <label>
-      <span>Land Area (Hectare)</span>
-      <input type="number" step="any" name="area" />
-    </label>
+    <label
+      ><span>Temperature (deg C)</span
+      ><input
+        type="number"
+        step="any"
+        name="temperature"
+        {%
+        if
+        result
+        %}value="{{ result.input_row.temperature }}"
+        {%
+        endif
+        %}
+    /></label>
+    <label
+      ><span>Humidity (%)</span
+      ><input
+        type="number"
+        step="any"
+        name="humidity"
+        {%
+        if
+        result
+        %}value="{{ result.input_row.humidity }}"
+        {%
+        endif
+        %}
+    /></label>
+    <label
+      ><span>Land Area (Hectare)</span
+      ><input
+        type="number"
+        step="any"
+        name="area"
+        {%
+        if
+        result
+        %}value="{{ result.input_row.area }}"
+        {%
+        endif
+        %}
+    /></label>
 
     <div class="form-grid">
-      <label>
-        <span>Season</span>
-        <select name="season">
+      <label
+        ><span>Season</span
+        ><select name="season">
           <option value="" selected disabled hidden></option>
-          <option value="Kharif">Kharif (Monsoon Crops - Jun to Oct)</option>
-          <option value="Rabi">Rabi (Winter Crops - Oct to Mar)</option>
-          <option value="Zaid">Zaid (Summer Crops - Mar to Jun)</option>
-          <option value="Whole Year">Whole Year (All-Season Crops)</option>
-        </select>
-      </label>
-
-      <label>
-        <span>Crop Type</span>
-        <select name="crop_type">
+          <option
+            value="Kharif"
+            {%
+            if
+            result
+            and
+            result.input_row.season=="Kharif"
+            %}selected{%
+            endif
+            %}
+          >
+            Kharif (Monsoon Crops - Jun to Oct)
+          </option>
+          <option
+            value="Rabi"
+            {%
+            if
+            result
+            and
+            result.input_row.season=="Rabi"
+            %}selected{%
+            endif
+            %}
+          >
+            Rabi (Winter Crops - Oct to Mar)
+          </option>
+          <option
+            value="Zaid"
+            {%
+            if
+            result
+            and
+            result.input_row.season=="Zaid"
+            %}selected{%
+            endif
+            %}
+          >
+            Zaid (Summer Crops - Mar to Jun)
+          </option>
+          <option
+            value="Whole Year"
+            {%
+            if
+            result
+            and
+            result.input_row.season=="Whole Year"
+            %}selected{%
+            endif
+            %}
+          >
+            Whole Year (All-Season Crops)
+          </option>
+        </select></label
+      >
+      <label
+        ><span>Crop Type</span
+        ><select name="crop_type">
           <option value="" selected disabled hidden></option>
-          <option value="Annual">
+          <option
+            value="Annual"
+            {%
+            if
+            result
+            and
+            result.input_row.crop_type=="Annual"
+            %}selected{%
+            endif
+            %}
+          >
             Annual (Completes cycle in 1 year - Wheat, Rice)
           </option>
-          <option value="Perennial">
+          <option
+            value="Perennial"
+            {%
+            if
+            result
+            and
+            result.input_row.crop_type=="Perennial"
+            %}selected{%
+            endif
+            %}
+          >
             Perennial (Lives 2+ years - Sugarcane, Banana)
           </option>
-          <option value="Biennial">
+          <option
+            value="Biennial"
+            {%
+            if
+            result
+            and
+            result.input_row.crop_type=="Biennial"
+            %}selected{%
+            endif
+            %}
+          >
             Biennial (Completes cycle in 2 years - Carrot, Onion)
           </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Water Source</span>
-        <select name="water_source">
+        </select></label
+      >
+      <label
+        ><span>Water Source</span
+        ><select name="water_source">
           <option value="" selected disabled hidden></option>
-          <option value="Rainfed">
+          <option
+            value="Rainfed"
+            {%
+            if
+            result
+            and
+            result.input_row.water_source=="Rainfed"
+            %}selected{%
+            endif
+            %}
+          >
             Rainfed (Depends on rainfall - Bajra, Jowar)
           </option>
-          <option value="Irrigated">
+          <option
+            value="Irrigated"
+            {%
+            if
+            result
+            and
+            result.input_row.water_source=="Irrigated"
+            %}selected{%
+            endif
+            %}
+          >
             Irrigated (Artificial water supply - Rice, Sugarcane)
           </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Climate Type</span>
-        <select name="climate_type">
+        </select></label
+      >
+      <label
+        ><span>Climate Type</span
+        ><select name="climate_type">
           <option value="" selected disabled hidden></option>
-          <option value="Tropical">
+          <option
+            value="Tropical"
+            {%
+            if
+            result
+            and
+            result.input_row.climate_type=="Tropical"
+            %}selected{%
+            endif
+            %}
+          >
             Tropical (Hot & humid year-round - Coconut, Banana)
           </option>
-          <option value="Subtropical">
+          <option
+            value="Subtropical"
+            {%
+            if
+            result
+            and
+            result.input_row.climate_type=="Subtropical"
+            %}selected{%
+            endif
+            %}
+          >
             Subtropical (Warm summers, mild winters - Wheat, Mustard)
           </option>
-          <option value="Temperate">
+          <option
+            value="Temperate"
+            {%
+            if
+            result
+            and
+            result.input_row.climate_type=="Temperate"
+            %}selected{%
+            endif
+            %}
+          >
             Temperate (Cool climate, distinct seasons - Apple, Pear)
           </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Duration Type</span>
-        <select name="duration_type">
+        </select></label
+      >
+      <label
+        ><span>Duration Type</span
+        ><select name="duration_type">
           <option value="" selected disabled hidden></option>
-          <option value="Short-Duration">
-            Short-Duration (60–90 days - Radish, Spinach)
+          <option
+            value="Short-Duration"
+            {%
+            if
+            result
+            and
+            result.input_row.duration_type=="Short-Duration"
+            %}selected{%
+            endif
+            %}
+          >
+            Short-Duration (60-90 days - Radish, Spinach)
           </option>
-          <option value="Medium-Duration">
-            Medium-Duration (90–120 days - Maize, Groundnut)
+          <option
+            value="Medium-Duration"
+            {%
+            if
+            result
+            and
+            result.input_row.duration_type=="Medium-Duration"
+            %}selected{%
+            endif
+            %}
+          >
+            Medium-Duration (90-120 days - Maize, Groundnut)
           </option>
-          <option value="Long-Duration">
+          <option
+            value="Long-Duration"
+            {%
+            if
+            result
+            and
+            result.input_row.duration_type=="Long-Duration"
+            %}selected{%
+            endif
+            %}
+          >
             Long-Duration (120+ days - Sugarcane, Cotton)
           </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Farming System</span>
-        <select name="farming_system">
+        </select></label
+      >
+      <label
+        ><span>Farming System</span
+        ><select name="farming_system">
           <option value="" selected disabled hidden></option>
-          <option value="Field">
+          <option
+            value="Field"
+            {%
+            if
+            result
+            and
+            result.input_row.farming_system=="Field"
+            %}selected{%
+            endif
+            %}
+          >
             Field (Open farmland - Wheat, Rice, Maize)
           </option>
-          <option value="Plantation">
+          <option
+            value="Plantation"
+            {%
+            if
+            result
+            and
+            result.input_row.farming_system=="Plantation"
+            %}selected{%
+            endif
+            %}
+          >
             Plantation (Large-scale estates - Tea, Coffee, Rubber)
           </option>
-          <option value="Horticulture">
+          <option
+            value="Horticulture"
+            {%
+            if
+            result
+            and
+            result.input_row.farming_system=="Horticulture"
+            %}selected{%
+            endif
+            %}
+          >
             Horticulture (Fruits & vegetables - Apple, Tomato)
           </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Economic Use</span>
-        <select name="economic_use">
+        </select></label
+      >
+      <label
+        ><span>Economic Use</span
+        ><select name="economic_use">
           <option value="" selected disabled hidden></option>
-          <option value="Food">
+          <option
+            value="Food"
+            {%
+            if
+            result
+            and
+            result.input_row.economic_use=="Food"
+            %}selected{%
+            endif
+            %}
+          >
             Food (Human consumption - Rice, Wheat, Vegetables)
           </option>
-          <option value="Cash">
+          <option
+            value="Cash"
+            {%
+            if
+            result
+            and
+            result.input_row.economic_use=="Cash"
+            %}selected{%
+            endif
+            %}
+          >
             Cash (Sold for income - Cotton, Sugarcane, Tobacco)
           </option>
-          <option value="Fodder">
+          <option
+            value="Fodder"
+            {%
+            if
+            result
+            and
+            result.input_row.economic_use=="Fodder"
+            %}selected{%
+            endif
+            %}
+          >
             Fodder (Livestock feed - Sorghum, Bajra, Lucerne)
           </option>
-        </select>
-      </label>
-
-      <label>
-        <span>Location</span>
-        <input type="text" name="location" id="locationInput" />
-      </label>
+        </select></label
+      >
+      <label
+        ><span>Location</span
+        ><input
+          type="text"
+          name="location"
+          id="locationInput"
+          {%
+          if
+          result
+          %}value="{{ result.input_row.location }}"
+          {%
+          endif
+          %}
+      /></label>
     </div>
 
     <article class="guide-panel">
@@ -290,3 +740,7 @@ content %}
   {% endif %}
 </div>
 {% endblock %}
+
+
+
+
